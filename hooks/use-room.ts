@@ -24,7 +24,11 @@ export type RoomState = {
    * meu; depois do reveal, todos.
    */
   votes: Record<string, string>;
+  /** Nome/avatar de todos os participantes da sala (carregado no reveal). */
+  members: Record<string, Member>;
 };
+
+export type Member = { name: string; avatar: string | null };
 
 const INITIAL: RoomState = {
   status: "loading",
@@ -35,6 +39,7 @@ const INITIAL: RoomState = {
   peers: [],
   connected: false,
   votes: {},
+  members: {},
 };
 
 /**
@@ -230,18 +235,42 @@ export function useRoom(slug: string, profile: Profile | null | undefined) {
   useEffect(() => {
     if (!roundId) return;
     let cancelled = false;
-    getSupabase()
-      .from("votes")
-      .select("user_id, value")
-      .eq("round_id", roundId)
-      .then(({ data }) => {
-        if (cancelled || !data) return;
-        const votes = Object.fromEntries(data.map((v) => [v.user_id, v.value]));
-        setState((s) => (s.round?.id === roundId ? { ...s, votes } : s));
+    const supabase = getSupabase();
+    (async () => {
+      const [{ data: votes }, members] = await Promise.all([
+        supabase.from("votes").select("user_id, value").eq("round_id", roundId),
+        // no reveal, carrega nomes de todos (inclusive quem votou e saiu)
+        revealed && room
+          ? supabase
+              .from("participants")
+              .select("user_id, display_name, avatar_url")
+              .eq("room_id", room.id)
+              .then(({ data }) => data)
+          : null,
+      ]);
+      if (cancelled || !votes) return;
+      setState((s) => {
+        if (s.round?.id !== roundId) return s;
+        const next = {
+          ...s,
+          votes: Object.fromEntries(votes.map((v) => [v.user_id, v.value])),
+        };
+        if (members) {
+          next.members = Object.fromEntries(
+            members.map((m) => [
+              m.user_id,
+              { name: m.display_name, avatar: m.avatar_url },
+            ]),
+          );
+        }
+        return next;
       });
+    })();
     return () => {
       cancelled = true;
     };
+    // room.id não muda durante a vida do hook
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roundId, revealed]);
 
   // ---- Presence: publica meus dados (nome, avatar, papel, se votou) ---------

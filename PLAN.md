@@ -187,7 +187,14 @@ Cada etapa é validada rodando localmente com duas janelas na mesma sala.
   - Migration `20261109010000`: `_touch_room` grava no máx. 1x/min (antes
     gerava um evento Realtime em `rooms` para todos a cada voto)
   - `scripts/bot.mjs` aceita um voto e vota de novo a cada rodada
-- [ ] Etapa 5 — Resultados
+- [x] **Etapa 5 — Resultados** (2026-11-09)
+  - Painel no rodapé após o reveal: gráfico de distribuição (Recharts, 1 série,
+    sem legenda, tooltip com quem votou, alternativa em texto para leitor de tela)
+  - Média, mediana e sugestão (carta mais próxima da média; empate → maior)
+  - Consenso (todos na mesma carta numérica) e alerta de divergência (votos 3+
+    posições distantes no deck) sugerindo ouvir quem votou nos extremos
+  - Nomes de todos os participantes carregados no reveal (inclui quem votou e saiu)
+  - Cor do gráfico validada (dataviz) contra o card claro e escuro
 - [ ] Etapa 6 — Extras
 - [ ] Etapa 7 — Deploy
 

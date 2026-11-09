@@ -17,6 +17,7 @@ import { ProfileDialog } from "@/components/profile-dialog";
 import { ProfileForm } from "@/components/profile-form";
 import { CardDeck } from "@/components/room/card-deck";
 import { ParticipantSeat } from "@/components/room/participant-seat";
+import { ResultsPanel } from "@/components/room/results-panel";
 import { RoundTitle } from "@/components/room/round-title";
 import { UserAvatar } from "@/components/user-avatar";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -210,18 +211,29 @@ export function RoomView({ slug }: { slug: string }) {
       </main>
 
       <footer className="bg-background/95 sticky bottom-0 border-t px-4 pt-2 pb-4 backdrop-blur">
-        {isPlayer ? (
+        {revealed ? (
+          <ResultsPanel
+            votes={room.votes}
+            names={{
+              ...room.members,
+              // quem está online tem o nome mais recente
+              ...Object.fromEntries(
+                room.peers.map((p) => [
+                  p.userId,
+                  { name: p.name, avatar: p.avatar },
+                ]),
+              ),
+            }}
+          />
+        ) : isPlayer ? (
           <>
             <p className="text-muted-foreground text-center text-sm">
-              {revealed
-                ? "Cartas reveladas. Inicie uma nova rodada para votar de novo."
-                : room.myVote
-                  ? "Voto registrado. Você pode trocar até revelar."
-                  : "Escolha sua carta 👇"}
+              {room.myVote
+                ? "Voto registrado. Você pode trocar até revelar."
+                : "Escolha sua carta 👇"}
             </p>
             <CardDeck
               selected={room.myVote}
-              disabled={revealed}
               onSelect={(value) =>
                 room
                   .vote(value)
