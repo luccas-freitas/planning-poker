@@ -43,7 +43,7 @@ const waitFor = (pred, label, ms = 5000) =>
 const alice = mk(),
   bob = mk();
 const aliceId = must(await alice.auth.signInAnonymously()).user.id;
-must(await bob.auth.signInAnonymously());
+const bobAuth = must(await bob.auth.signInAnonymously());
 ok(aliceId, "login anônimo");
 
 const slug = must(
@@ -61,7 +61,8 @@ const roomId = must(
 const roundEvents = [],
   reactions = [],
   system = [];
-let presence = {};
+let presence = {},
+  votedPings = 0;
 const ch = alice
   .channel(`room:${roomId}`, { config: { presence: { key: aliceId } } })
   .on(
@@ -80,6 +81,7 @@ const ch = alice
   .on("broadcast", { event: "reaction" }, ({ payload }) =>
     reactions.push(payload),
   )
+  .on("broadcast", { event: "voted" }, () => votedPings++)
   .on("system", {}, (p) => system.push(p));
 await new Promise((res, rej) =>
   ch.subscribe((s) =>
@@ -97,9 +99,9 @@ const bobCh = bob.channel(`room:${roomId}`, {
   config: { presence: { key: "bob" } },
 });
 await new Promise((res) => bobCh.subscribe((s) => s === "SUBSCRIBED" && res()));
-await bobCh.track({ name: "Bob", hasVoted: true });
-await waitFor(() => presence.bob?.[0]?.hasVoted === true, "presence");
-ok(true, "presence: Alice vê que Bob votou");
+await bobCh.track({ name: "Bob" });
+await waitFor(() => presence.bob?.[0]?.name === "Bob", "presence");
+ok(true, "presence: Alice vê o Bob online");
 
 await bobCh.send({
   type: "broadcast",
@@ -110,6 +112,14 @@ await waitFor(() => reactions.length === 1, "broadcast");
 ok(reactions[0].emoji === "🎉", "broadcast: reação recebida");
 
 must(await bob.rpc("cast_vote", { p_room_id: roomId, p_value: "8" }));
+await bobCh.send({ type: "broadcast", event: "voted", payload: {} });
+await waitFor(() => votedPings > 0, "aviso de voto");
+ok(
+  must(await alice.rpc("round_voters", { p_room_id: roomId })).includes(
+    bobAuth.user.id,
+  ),
+  "Alice sabe que o Bob votou (sem ver o valor)",
+);
 must(await alice.rpc("cast_vote", { p_room_id: roomId, p_value: "5" }));
 ok(
   must(await alice.from("votes").select()).length === 1,

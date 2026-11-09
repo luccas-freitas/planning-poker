@@ -46,6 +46,11 @@ begin
     assert false, 'insert direto em votes deveria falhar';
   exception when insufficient_privilege then null;
   end;
+
+  -- 2b. round_voters mostra quem votou (sem valores) antes do reveal
+  select count(*) into n
+  from public.round_voters((select v::uuid from ctx where k = 'room'));
+  assert n = 2, format('round_voters deveria listar 2 pessoas, listou %s', n);
 end $$;
 
 -- 3. Eve (fora da sala) não vê nada nem consegue votar
@@ -58,6 +63,12 @@ begin
   begin
     perform public.cast_vote((select v::uuid from ctx where k = 'room'), '1');
     assert false, 'Eve não deveria conseguir votar';
+  exception when insufficient_privilege then null;
+  end;
+  -- 3b. Eve não descobre quem votou numa sala da qual não participa
+  begin
+    perform public.round_voters((select v::uuid from ctx where k = 'room'));
+    assert false, 'Eve não deveria listar quem votou';
   exception when insufficient_privilege then null;
   end;
 end $$;

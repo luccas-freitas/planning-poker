@@ -15,11 +15,14 @@ export type PresenceMeta = {
   name: string;
   avatar: string | null;
   role: Role;
-  hasVoted: boolean;
   onlineAt: string;
 };
 
-export type Peer = PresenceMeta & { isMe: boolean };
+/**
+ * Participante online. `hasVoted` não vem do Presence (o Supabase limita a 5
+ * atualizações de Presence por cliente a cada 30 s); vem de `round_voters`.
+ */
+export type Peer = PresenceMeta & { isMe: boolean; hasVoted: boolean };
 
 /** Precisa bater com o CHECK de `rooms.slug`. */
 const SLUG_RE = /[a-z0-9]{12}/;

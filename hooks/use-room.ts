@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import type { Profile } from "@/lib/profile";
 import {
@@ -24,7 +24,9 @@ export type RoomState = {
   userId: string | null;
   role: Role;
   /** Participantes online (Presence), em ordem de chegada. */
-  peers: Peer[];
+  peers: Omit<Peer, "hasVoted">[];
+  /** Quem já votou na rodada atual (só ids; vem de `round_voters`). */
+  voters: string[];
   /** Canal realtime conectado e escutando mudanças do banco. */
   connected: boolean;
   /**
@@ -45,6 +47,7 @@ const INITIAL: RoomState = {
   userId: null,
   role: "player",
   peers: [],
+  voters: [],
   connected: false,
   votes: {},
   members: {},
@@ -57,10 +60,22 @@ const INITIAL: RoomState = {
  */
 const pendingRemovals = new Map<string, Promise<unknown>>();
 
+/**
+ * O Supabase permite no máximo 5 atualizações de Presence por cliente a cada
+ * 30 s; acima disso derruba o canal (ClientPresenceRateLimitReached). Com um
+ * intervalo mínimo de 7 s nunca passamos de 5 em 30 s.
+ */
+const PRESENCE_MIN_GAP_MS = 7_000;
+/** Espera antes de reconectar um canal derrubado (dobra a cada falha). */
+const RECONNECT_BASE_MS = 1_000;
+const RECONNECT_MAX_MS = 30_000;
+/** Agrupa avisos de "votei" que chegam juntos numa só busca. */
+const VOTERS_DEBOUNCE_MS = 250;
+
 function peersFromPresence(
   state: Record<string, PresenceMeta[]>,
   me: string,
-): Peer[] {
+): RoomState["peers"] {
   return Object.values(state)
     .map((metas) => metas[0]) // várias abas do mesmo usuário → uma pessoa
     .filter(Boolean)
@@ -76,6 +91,76 @@ export function useRoom(slug: string, profile: Profile | null | undefined) {
   const currentRoundId = useRef<string | null>(null);
   const reactionListeners = useRef(new Set<(r: Reaction) => void>());
   const lastReactionAt = useRef(0);
+  /** Último Presence enviado (para não repetir e respeitar o limite). */
+  const tracked = useRef<{
+    at: number;
+    key: string;
+    channel: RealtimeChannel | null;
+    timer?: ReturnType<typeof setTimeout>;
+  }>({ at: 0, key: "", channel: null });
+  /** Busca de quem votou, com debounce (ver `requestVoters`). */
+  const votersTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined,
+  );
+  const roomIdRef = useRef<string | null>(null);
+  /** Votos em sequência: um RPC por vez, o último clique vence. */
+  const voteQueue = useRef<{ running: boolean; next?: string | null }>({
+    running: false,
+  });
+
+  /**
+   * Publica meu Presence se mudou algo, no máximo uma vez a cada
+   * PRESENCE_MIN_GAP_MS (o que chegar no meio do intervalo sai no fim dele).
+   */
+  const pushPresence = useCallback(() => {
+    const t = tracked.current;
+    const send = () => {
+      t.timer = undefined;
+      const channel = channelRef.current;
+      const meta = presenceRef.current;
+      if (!channel || !meta || channel.state !== "joined") return;
+      const key = JSON.stringify(meta);
+      // canal novo (reconexão) não tem meu Presence: precisa enviar de novo
+      if (key === t.key && channel === t.channel) return;
+      t.at = Date.now();
+      t.key = key;
+      t.channel = channel;
+      void channel.track(meta);
+    };
+    if (t.timer) return; // já agendado; vai ler o estado mais recente
+    const wait = t.at + PRESENCE_MIN_GAP_MS - Date.now();
+    if (wait <= 0) send();
+    else t.timer = setTimeout(send, wait);
+  }, []);
+
+  /** Recarrega quem votou na rodada atual (agrupando pedidos próximos). */
+  const requestVoters = useCallback(() => {
+    clearTimeout(votersTimer.current);
+    votersTimer.current = setTimeout(async () => {
+      const roomId = roomIdRef.current;
+      const roundId = currentRoundId.current;
+      if (!roomId) return;
+      const { data } = await getSupabase().rpc("round_voters", {
+        p_room_id: roomId,
+      });
+      if (!data) return;
+      setState((s) =>
+        // ignora resposta atrasada de uma rodada que já acabou
+        s.round?.id === roundId && currentRoundId.current === roundId
+          ? { ...s, voters: data }
+          : s,
+      );
+    }, VOTERS_DEBOUNCE_MS);
+  }, []);
+
+  /** Avisa a sala que meu voto mudou (os outros recarregam `round_voters`). */
+  const announceVote = useCallback(() => {
+    void channelRef.current?.send({
+      type: "broadcast",
+      event: "voted",
+      payload: {},
+    });
+  }, []);
 
   const ready = !!profile;
   const profileName = profile?.name;
@@ -88,6 +173,8 @@ export function useRoom(slug: string, profile: Profile | null | undefined) {
     let cancelled = false;
     let channel: RealtimeChannel | null = null;
     let topic = "";
+    let retries = 0;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
 
     const update = (patch: Partial<RoomState>) => {
       if (!cancelled) setState((s) => ({ ...s, ...patch }));
@@ -103,11 +190,16 @@ export function useRoom(slug: string, profile: Profile | null | undefined) {
         .single();
       if (data && !cancelled) {
         // mesma rodada (ex.: recarga após reconectar) mantém os votos
-        setState((s) => ({
-          ...s,
-          round: data,
-          votes: s.round?.id === data.id ? s.votes : {},
-        }));
+        setState((s) => {
+          const same = s.round?.id === data.id;
+          return {
+            ...s,
+            round: data,
+            votes: same ? s.votes : {},
+            voters: same ? s.voters : [],
+          };
+        });
+        requestVoters();
       }
     }
 
@@ -147,81 +239,12 @@ export function useRoom(slug: string, profile: Profile | null | undefined) {
         }
         if (cancelled) return;
         joinedProfile.current = `${profileName}|${profileAvatar}`;
+        roomIdRef.current = roomId;
         update({ userId });
         await loadAll(roomId, userId);
 
         topic = `room:${roomId}`;
-        await pendingRemovals.get(topic);
-        if (cancelled) return;
-
-        channel = supabase.channel(topic, {
-          // self: o remetente também recebe a própria reação (um só caminho)
-          config: { presence: { key: userId }, broadcast: { self: true } },
-        });
-        channelRef.current = channel;
-
-        channel
-          .on(
-            "postgres_changes",
-            {
-              event: "UPDATE",
-              schema: "public",
-              table: "rooms",
-              filter: `id=eq.${roomId}`,
-            },
-            ({ new: row }) => {
-              const room = row as Room;
-              if (currentRoundId.current !== room.current_round_id) {
-                void loadRound(room.current_round_id);
-              }
-              setState((s) => ({ ...s, room: { ...s.room!, ...room } }));
-            },
-          )
-          .on(
-            "postgres_changes",
-            {
-              event: "*",
-              schema: "public",
-              table: "rounds",
-              filter: `room_id=eq.${roomId}`,
-            },
-            ({ new: row }) => {
-              const round = row as Round;
-              if (round.id === currentRoundId.current) update({ round });
-            },
-          )
-          .on("broadcast", { event: "reaction" }, ({ payload }) => {
-            // payload vem de outros clientes: valida antes de usar
-            const p = payload as Partial<Reaction>;
-            if (!isReactionEmoji(p.emoji) || typeof p.from !== "string") return;
-            const reaction: Reaction = {
-              id: crypto.randomUUID(),
-              emoji: p.emoji,
-              from: p.from,
-              to: typeof p.to === "string" ? p.to : undefined,
-            };
-            reactionListeners.current.forEach((l) => l(reaction));
-          })
-          .on("presence", { event: "sync" }, () => {
-            const presence = channel!.presenceState<PresenceMeta>();
-            update({ peers: peersFromPresence(presence, userId) });
-          })
-          .on("system", {}, (msg) => {
-            // só a partir daqui o postgres_changes está ativo: recarrega para
-            // não perder nada que mudou entre o fetch inicial e a assinatura
-            if (msg.extension === "postgres_changes" && msg.status === "ok") {
-              update({ connected: true });
-              void loadAll(roomId, userId);
-            }
-          })
-          .subscribe((status) => {
-            if (status === "SUBSCRIBED") {
-              if (presenceRef.current) void channel!.track(presenceRef.current);
-            } else {
-              update({ connected: false });
-            }
-          });
-
+        void openChannel(roomId, userId);
         update({ status: "ready" });
       } catch (err) {
         update({
@@ -231,8 +254,111 @@ export function useRoom(slug: string, profile: Profile | null | undefined) {
       }
     })();
 
+    /**
+     * Fecha o canal atual e abre outro depois de uma espera crescente. Usado
+     * quando o servidor derruba o canal (rede, limite de taxa, deploy do
+     * Realtime): sem isso a pessoa ficava desconectada até recarregar a página.
+     */
+    function reconnect(roomId: string, userId: string) {
+      if (cancelled || retryTimer) return;
+      update({ connected: false });
+      const old = channel;
+      channel = null;
+      channelRef.current = null;
+      const removal = old ? supabase.removeChannel(old) : Promise.resolve();
+      pendingRemovals.set(topic, removal);
+      const delay = Math.min(
+        RECONNECT_MAX_MS,
+        RECONNECT_BASE_MS * 2 ** retries++,
+      );
+      retryTimer = setTimeout(() => {
+        retryTimer = undefined;
+        if (!cancelled) void openChannel(roomId, userId);
+      }, delay);
+    }
+
+    async function openChannel(roomId: string, userId: string) {
+      await pendingRemovals.get(topic);
+      if (cancelled) return;
+
+      const ch = supabase.channel(topic, {
+        // self: o remetente também recebe a própria reação (um só caminho)
+        config: { presence: { key: userId }, broadcast: { self: true } },
+      });
+      channel = ch;
+      channelRef.current = ch;
+
+      ch.on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "rooms",
+          filter: `id=eq.${roomId}`,
+        },
+        ({ new: row }) => {
+          const room = row as Room;
+          if (currentRoundId.current !== room.current_round_id) {
+            void loadRound(room.current_round_id);
+          }
+          setState((s) => ({ ...s, room: { ...s.room!, ...room } }));
+        },
+      )
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "rounds",
+            filter: `room_id=eq.${roomId}`,
+          },
+          ({ new: row }) => {
+            const round = row as Round;
+            if (round.id === currentRoundId.current) update({ round });
+          },
+        )
+        .on("broadcast", { event: "reaction" }, ({ payload }) => {
+          // payload vem de outros clientes: valida antes de usar
+          const p = payload as Partial<Reaction>;
+          if (!isReactionEmoji(p.emoji) || typeof p.from !== "string") return;
+          const reaction: Reaction = {
+            id: crypto.randomUUID(),
+            emoji: p.emoji,
+            from: p.from,
+            to: typeof p.to === "string" ? p.to : undefined,
+          };
+          reactionListeners.current.forEach((l) => l(reaction));
+        })
+        // alguém votou/retirou o voto: recarrega quem votou (sem payload
+        // confiável: a fonte da verdade é o banco)
+        .on("broadcast", { event: "voted" }, () => requestVoters())
+        .on("presence", { event: "sync" }, () => {
+          const presence = ch.presenceState<PresenceMeta>();
+          update({ peers: peersFromPresence(presence, userId) });
+        })
+        .on("system", {}, (msg) => {
+          // só a partir daqui o postgres_changes está ativo: recarrega para
+          // não perder nada que mudou entre o fetch inicial e a assinatura
+          if (msg.extension === "postgres_changes" && msg.status === "ok") {
+            retries = 0;
+            update({ connected: true });
+            void loadAll(roomId, userId);
+          }
+        })
+        .subscribe((status) => {
+          if (cancelled || channel !== ch) return; // canal antigo/removido
+          if (status === "SUBSCRIBED") {
+            pushPresence();
+          } else {
+            // CHANNEL_ERROR, TIMED_OUT ou CLOSED pelo servidor
+            reconnect(roomId, userId);
+          }
+        });
+    }
+
     return () => {
       cancelled = true;
+      clearTimeout(retryTimer);
       channelRef.current = null;
       if (channel) {
         const removal = supabase.removeChannel(channel);
@@ -296,22 +422,30 @@ export function useRoom(slug: string, profile: Profile | null | undefined) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roundId, revealed]);
 
-  // ---- Presence: publica meus dados (nome, avatar, papel, se votou) ---------
-  const hasVoted = myVote !== null;
+  // ---- Presence: publica meus dados (nome, avatar, papel) -------------------
+  // Só o que muda raramente vai no Presence (limite de 5 atualizações/30 s).
+  // O voto vai por Broadcast ("voted") + `round_voters`.
   useEffect(() => {
     if (!userId || !profileName) return;
-    const meta: PresenceMeta = {
+    presenceRef.current = {
       userId,
       name: profileName,
       avatar: profileAvatar,
       role,
-      hasVoted,
       onlineAt: presenceRef.current?.onlineAt ?? new Date().toISOString(),
     };
-    presenceRef.current = meta;
-    const channel = channelRef.current;
-    if (channel?.state === "joined") void channel.track(meta);
-  }, [userId, profileName, profileAvatar, role, hasVoted, state.connected]);
+    pushPresence();
+  }, [userId, profileName, profileAvatar, role, pushPresence]);
+
+  // limpa timers pendentes ao sair da sala
+  useEffect(
+    () => () => {
+      clearTimeout(tracked.current.timer);
+      clearTimeout(votersTimer.current);
+      tracked.current = { at: 0, key: "", channel: null };
+    },
+    [slug],
+  );
 
   // ---- Perfil editado dentro da sala: atualiza o registro no banco ---------
   useEffect(() => {
@@ -347,8 +481,9 @@ export function useRoom(slug: string, profile: Profile | null | undefined) {
         if (!s.round?.revealed) delete votes[s.userId];
         return { ...s, role: next, votes };
       });
+      if (next === "spectator") announceVote();
     },
-    [room],
+    [room, announceVote],
   );
 
   /** Envia uma reação (no máx. ~4 por segundo por pessoa). */
@@ -396,34 +531,61 @@ export function useRoom(slug: string, profile: Profile | null | undefined) {
     await getSupabase().rpc("leave_room", { p_room_id: room.id });
   }, [room]);
 
-  /** Vota (ou troca o voto). `null` retira o voto. Otimista com rollback. */
+  /**
+   * Vota (ou troca o voto). `null` retira o voto. A tela muda na hora; os
+   * RPCs saem um de cada vez e cliques rápidos se juntam (o último vence), para
+   * as requisições não chegarem fora de ordem no banco.
+   */
   const vote = useCallback(
     async (value: string | null) => {
       if (!room || !userId) return;
-      let previous: string | undefined;
       setState((s) => {
-        previous = s.votes[userId];
         const votes = { ...s.votes };
         if (value === null) delete votes[userId];
         else votes[userId] = value;
         return { ...s, votes };
       });
-      const { error } = await getSupabase().rpc("cast_vote", {
-        p_room_id: room.id,
-        // o tipo gerado não sabe que o parâmetro aceita null
-        p_value: value as string,
-      });
-      if (error) {
-        setState((s) => {
-          const votes = { ...s.votes };
-          if (previous === undefined) delete votes[userId];
-          else votes[userId] = previous;
-          return { ...s, votes };
-        });
-        throw error;
+
+      const queue = voteQueue.current;
+      queue.next = value;
+      if (queue.running) return; // o laço abaixo envia o valor mais recente
+      queue.running = true;
+      const supabase = getSupabase();
+      try {
+        while (queue.next !== undefined) {
+          const sending = queue.next;
+          queue.next = undefined;
+          const { error } = await supabase.rpc("cast_vote", {
+            p_room_id: room.id,
+            // o tipo gerado não sabe que o parâmetro aceita null
+            p_value: sending as string,
+          });
+          if (error) {
+            queue.next = undefined;
+            // volta para o que o banco tem de fato
+            const roundId = currentRoundId.current;
+            const { data } = await supabase
+              .from("votes")
+              .select("value")
+              .eq("round_id", roundId ?? "")
+              .eq("user_id", userId)
+              .maybeSingle();
+            setState((s) => {
+              if (s.round?.id !== roundId) return s;
+              const votes = { ...s.votes };
+              if (data) votes[userId] = data.value;
+              else delete votes[userId];
+              return { ...s, votes };
+            });
+            throw error;
+          }
+        }
+      } finally {
+        queue.running = false;
+        announceVote();
       }
     },
-    [room, userId],
+    [room, userId, announceVote],
   );
 
   const reveal = useCallback(async () => {
@@ -454,8 +616,18 @@ export function useRoom(slug: string, profile: Profile | null | undefined) {
     [room],
   );
 
+  // "já votou": lista do banco + meu voto local (aparece sem esperar a rede)
+  const peers = useMemo<Peer[]>(() => {
+    const voted = new Set(state.voters);
+    return state.peers.map((p) => ({
+      ...p,
+      hasVoted: p.isMe ? myVote !== null : voted.has(p.userId),
+    }));
+  }, [state.peers, state.voters, myVote]);
+
   return {
     ...state,
+    peers,
     myVote,
     setRole,
     leave,

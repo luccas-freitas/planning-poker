@@ -34,8 +34,12 @@ const onlineAt = new Date().toISOString();
 const ch = sb.channel(`room:${roomId}`, {
   config: { presence: { key: userId } },
 });
-const track = (hasVoted) =>
-  ch.track({ userId, name, avatar, role: "player", hasVoted, onlineAt });
+// Presence só com dados que mudam pouco (limite: 5 atualizações/30 s);
+// o voto é avisado por Broadcast "voted"
+const track = () =>
+  ch.track({ userId, name, avatar, role: "player", onlineAt });
+const announceVote = () =>
+  ch.send({ type: "broadcast", event: "voted", payload: {} });
 
 async function castVote() {
   if (!vote) return;
@@ -45,7 +49,7 @@ async function castVote() {
     p_value: vote,
   });
   if (error) return console.log(`${name}: erro ao votar`, error.message);
-  await track(true);
+  await announceVote();
   console.log(`${name} votou ${vote}`);
 }
 
@@ -64,12 +68,11 @@ ch.on(
   async ({ new: room }) => {
     if (room.current_round_id === currentRound) return; // só nova rodada
     currentRound = room.current_round_id;
-    await track(false);
     void castVote();
   },
 ).subscribe(async (s) => {
   if (s !== "SUBSCRIBED") return;
-  await track(false);
+  await track();
   console.log(`${name} online em ${slug}`);
   void castVote();
 });

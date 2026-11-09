@@ -219,6 +219,13 @@ Cada etapa é validada rodando localmente com duas janelas na mesma sala.
   Validação aceita qualquer emoji único (grafema com pictograma, ≤ 32 code units)
 
 ### Aprendizados / pendências
+- **Presence tem limite por cliente:** no máximo 5 `track()` a cada 30 s; acima
+  disso o Realtime fecha o canal (`ClientPresenceRateLimitReached`) e o
+  realtime-js não reabre sozinho. Em produção, quem clicava várias vezes na
+  carta caía, e depois caíam os demais (cada voto/rodada era um `track`).
+  Correção: o "já votou" saiu do Presence (Broadcast `voted` + RPC
+  `round_voters`), o Presence só muda com nome/avatar/papel (no máx. 1 a cada
+  7 s) e o hook reconecta o canal sozinho com espera crescente.
 - **Realtime:** `postgres_changes` só fica ativo após a mensagem `system`
   (`extension: "postgres_changes", status: "ok"`), que chega depois do `SUBSCRIBED`.
   O front deve esperar essa mensagem e refazer o fetch do estado ao recebê-la.
