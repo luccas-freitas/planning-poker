@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Pencil } from "lucide-react";
 import { ProfileForm } from "@/components/profile-form";
+import { RoomActions } from "@/components/room-actions";
 import { UserAvatar } from "@/components/user-avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -49,26 +50,29 @@ export default function Home() {
           </CardContent>
         </Card>
       ) : (
-        <Card>
-          <CardContent className="flex items-center gap-4">
-            <UserAvatar
-              name={profile.name}
-              avatar={profile.avatar}
-              className="size-14 text-lg"
-            />
-            <div className="min-w-0 flex-1">
-              <p className="text-muted-foreground text-sm">Olá,</p>
-              <p className="truncate text-lg font-semibold">{profile.name}</p>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setEditing(true)}
-            >
-              <Pencil /> Editar
-            </Button>
-          </CardContent>
-        </Card>
+        <>
+          <Card>
+            <CardContent className="flex items-center gap-4">
+              <UserAvatar
+                name={profile.name}
+                avatar={profile.avatar}
+                className="size-14 text-lg"
+              />
+              <div className="min-w-0 flex-1">
+                <p className="text-muted-foreground text-sm">Olá,</p>
+                <p className="truncate text-lg font-semibold">{profile.name}</p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setEditing(true)}
+              >
+                <Pencil /> Editar
+              </Button>
+            </CardContent>
+          </Card>
+          <RoomActions profile={profile} />
+        </>
       )}
     </main>
   );

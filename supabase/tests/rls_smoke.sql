@@ -125,10 +125,15 @@ end $$;
 reset role;
 
 -- 9. Limpeza remove salas inativas
-update public.rooms set last_activity_at = now() - interval '8 days';
+update public.rooms set last_activity_at = now() - interval '8 days'
+where id = (select v::uuid from ctx where k = 'room');
 do $$
 begin
-  assert public.cleanup_inactive_rooms() = 1, 'cleanup deveria remover 1 sala';
+  assert public.cleanup_inactive_rooms() >= 1, 'cleanup deveria remover a sala inativa';
+  assert not exists (select 1 from public.rooms where id = (select v::uuid from ctx where k = 'room')),
+    'sala inativa deveria ter sido removida';
+  assert not exists (select 1 from public.rounds where room_id = (select v::uuid from ctx where k = 'room')),
+    'rodadas da sala deveriam ter sido removidas em cascata';
 end $$;
 
 \echo '✅ Todos os testes de RLS passaram'

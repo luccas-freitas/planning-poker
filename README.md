@@ -31,6 +31,7 @@ Supabase Studio local: http://127.0.0.1:54323
 | `npm run db:types` | Regenera `lib/database.types.ts` a partir do banco |
 | `npm run db:test` | Testes de RLS/RPC em SQL (`supabase/tests/rls_smoke.sql`) |
 | `npm run test:e2e` | Teste ponta a ponta: auth anônimo, Realtime e Storage |
+| `node scripts/bot.mjs <código> [nome] [segundos]` | Coloca um participante falso na sala para testar |
 
 ## Banco de dados
 

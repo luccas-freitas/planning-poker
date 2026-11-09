@@ -170,7 +170,15 @@ Cada etapa é validada rodando localmente com duas janelas na mesma sala.
   - Upload: recorte quadrado + 256px WebP no navegador, salvo em
     `avatars/<user_id>/avatar` (substitui a anterior) com cache-buster
   - Sessão anônima criada só quando necessária (upload; depois, criar/entrar em sala)
-- [ ] Etapa 3 — Salas
+- [x] **Etapa 3 — Salas** (2026-11-09)
+  - Home: criar sala (nome opcional) e entrar colando link ou código
+  - `/r/[slug]`: shell estático + `<Suspense>` (Cache Components do Next 16)
+  - `useRoom`: entra via RPC, carrega estado, assina Realtime (rooms/rounds +
+    Presence) e refaz o fetch quando o `postgres_changes` confirma
+  - Mesa com jogadores online (Presence), espectadores à parte, convite por link,
+    edição de perfil dentro da sala, sair da sala, tela de sala não encontrada
+  - Tema claro/escuro segue o sistema (`prefers-color-scheme`, só CSS)
+  - `scripts/bot.mjs`: simula outro participante para testes
 - [ ] Etapa 4 — Votação
 - [ ] Etapa 5 — Resultados
 - [ ] Etapa 6 — Extras
@@ -180,6 +188,10 @@ Cada etapa é validada rodando localmente com duas janelas na mesma sala.
 - **Realtime:** `postgres_changes` só fica ativo após a mensagem `system`
   (`extension: "postgres_changes", status: "ok"`), que chega depois do `SUBSCRIBED`.
   O front deve esperar essa mensagem e refazer o fetch do estado ao recebê-la.
+- **supabase-js:** `rpc()`/`from()` são lazy — sem `await`/`.then()` a requisição
+  não é enviada (`void supabase.rpc(...)` não faz nada).
+- **realtime-js:** `channel(topic)` reaproveita canal com o mesmo tópico e a remoção
+  é assíncrona; no StrictMode esperamos a remoção anterior antes de recriar.
 - **Storage:** `upsert` exige policy de `SELECT` além de `INSERT`/`UPDATE`.
 - **Avatares órfãos:** Supabase não permite apagar `storage.objects` via SQL;
   limpeza de avatares fica para a etapa 7 (Storage API).
