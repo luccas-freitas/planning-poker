@@ -1,36 +1,40 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Planning Poker
 
-## Getting Started
+Planning poker em tempo real para o time. Next.js + Tailwind + Supabase. Veja o [PLAN.md](./PLAN.md).
 
-First, run the development server:
+## Pré-requisitos
+
+- Node.js 20+
+- Docker (para o Supabase local)
+
+## Rodando localmente
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run db:start          # sobe o Supabase local (1ª vez baixa as imagens Docker)
+cp .env.example .env.local
+# preencha NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY com o "Publishable key" de `npx supabase status`
+npm run dev               # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Supabase Studio local: http://127.0.0.1:54323
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Scripts
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Script | O que faz |
+|---|---|
+| `npm run dev` | Servidor de desenvolvimento |
+| `npm run build` | Build de produção |
+| `npm run lint` / `typecheck` / `format` | Qualidade de código |
+| `npm run db:start` / `db:stop` | Sobe/derruba o Supabase local |
+| `npm run db:reset` | Recria o banco aplicando as migrations |
+| `npm run db:types` | Regenera `lib/database.types.ts` a partir do banco |
+| `npm run db:test` | Testes de RLS/RPC em SQL (`supabase/tests/rls_smoke.sql`) |
+| `npm run test:e2e` | Teste ponta a ponta: auth anônimo, Realtime e Storage |
 
-## Learn More
+## Banco de dados
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Migrations em `supabase/migrations/`
+- Tabelas são somente leitura para o cliente; toda escrita é via RPC (`create_room`,
+  `join_room`, `cast_vote`, `reveal_round`, `new_round`, `set_role`, `set_round_title`, `leave_room`)
+- Votos ficam ocultos (RLS) até a rodada ser revelada
