@@ -1,12 +1,23 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Eye, Link2, Loader2, LogOut, WifiOff } from "lucide-react";
+import {
+  Eye,
+  Link2,
+  Loader2,
+  LogOut,
+  RotateCcw,
+  Sparkles,
+  WifiOff,
+} from "lucide-react";
 import { toast } from "sonner";
 import { ProfileDialog } from "@/components/profile-dialog";
 import { ProfileForm } from "@/components/profile-form";
+import { CardDeck } from "@/components/room/card-deck";
 import { ParticipantSeat } from "@/components/room/participant-seat";
+import { RoundTitle } from "@/components/room/round-title";
 import { UserAvatar } from "@/components/user-avatar";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
@@ -18,12 +29,13 @@ import {
 } from "@/components/ui/card";
 import { useRoom } from "@/hooks/use-room";
 import { useProfile } from "@/lib/profile";
-import { copyText } from "@/lib/room";
+import { copyText, type Peer } from "@/lib/room";
 
 export function RoomView({ slug }: { slug: string }) {
   const profile = useProfile();
   const router = useRouter();
   const room = useRoom(slug, profile);
+  const [busy, setBusy] = useState(false);
 
   // ---- antes de entrar: carregando / sem perfil / erros --------------------
   if (profile === undefined) return <RoomSkeleton />;
@@ -85,6 +97,22 @@ export function RoomView({ slug }: { slug: string }) {
     router.push("/");
   }
 
+  /** Executa uma ação da rodada com feedback de erro. */
+  async function run(action: () => Promise<void>, failMessage: string) {
+    setBusy(true);
+    try {
+      await action();
+    } catch {
+      toast.error(failMessage);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const revealed = room.round?.revealed ?? false;
+  const votedCount = players.filter((p) => p.hasVoted).length;
+  const isPlayer = room.role === "player";
+
   return (
     <div className="flex flex-1 flex-col">
       <header className="flex items-center gap-3 border-b px-4 py-3">
@@ -117,22 +145,51 @@ export function RoomView({ slug }: { slug: string }) {
       </header>
 
       <main className="flex flex-1 flex-col items-center justify-center gap-6 px-4 py-8">
-        <SeatRow peers={top} />
-        <div className="bg-muted/50 flex min-h-36 w-full max-w-2xl flex-col items-center justify-center gap-2 rounded-[2.5rem] border px-6 py-8 text-center">
-          {players.length <= 1 ? (
+        <SeatRow peers={top} revealed={revealed} votes={room.votes} />
+        <div className="bg-muted/50 flex min-h-40 w-full max-w-2xl flex-col items-center justify-center gap-3 rounded-[2.5rem] border px-6 py-6 text-center">
+          <RoundTitle
+            title={room.round?.title ?? null}
+            onSave={room.setTitle}
+          />
+          {revealed ? (
+            <Button
+              size="lg"
+              variant="secondary"
+              disabled={busy}
+              onClick={() =>
+                run(room.newRound, "Não foi possível iniciar nova rodada.")
+              }
+            >
+              <RotateCcw /> Nova rodada
+            </Button>
+          ) : players.length <= 1 && votedCount === 0 ? (
             <>
-              <p className="font-medium">Esperando o time chegar…</p>
+              <p className="text-muted-foreground text-sm">
+                Esperando o time chegar…
+              </p>
               <Button variant="link" size="sm" onClick={copyLink}>
                 Copiar link de convite
               </Button>
             </>
           ) : (
-            <p className="text-muted-foreground">
-              {players.length} jogadores na mesa
-            </p>
+            <>
+              <p className="text-muted-foreground text-sm">
+                {votedCount} de {players.length}{" "}
+                {votedCount === 1 ? "votou" : "votaram"}
+              </p>
+              <Button
+                size="lg"
+                disabled={busy || votedCount === 0}
+                onClick={() =>
+                  run(room.reveal, "Não foi possível revelar as cartas.")
+                }
+              >
+                <Sparkles /> Revelar cartas
+              </Button>
+            </>
           )}
         </div>
-        <SeatRow peers={bottom} />
+        <SeatRow peers={bottom} revealed={revealed} votes={room.votes} />
 
         {spectators.length > 0 && (
           <section className="text-muted-foreground flex flex-wrap items-center justify-center gap-2 text-sm">
@@ -151,16 +208,58 @@ export function RoomView({ slug }: { slug: string }) {
           </section>
         )}
       </main>
+
+      <footer className="bg-background/95 sticky bottom-0 border-t px-4 pt-2 pb-4 backdrop-blur">
+        {isPlayer ? (
+          <>
+            <p className="text-muted-foreground text-center text-sm">
+              {revealed
+                ? "Cartas reveladas. Inicie uma nova rodada para votar de novo."
+                : room.myVote
+                  ? "Voto registrado. Você pode trocar até revelar."
+                  : "Escolha sua carta 👇"}
+            </p>
+            <CardDeck
+              selected={room.myVote}
+              disabled={revealed}
+              onSelect={(value) =>
+                room
+                  .vote(value)
+                  .catch(() =>
+                    toast.error("Não foi possível registrar o voto."),
+                  )
+              }
+            />
+          </>
+        ) : (
+          <p className="text-muted-foreground py-4 text-center text-sm">
+            <Eye className="mr-1 inline size-4" /> Você está assistindo.
+          </p>
+        )}
+      </footer>
     </div>
   );
 }
 
-function SeatRow({ peers }: { peers: ReturnType<typeof useRoom>["peers"] }) {
+function SeatRow({
+  peers,
+  revealed,
+  votes,
+}: {
+  peers: Peer[];
+  revealed: boolean;
+  votes: Record<string, string>;
+}) {
   if (peers.length === 0) return null;
   return (
     <div className="flex flex-wrap justify-center gap-3 sm:gap-6">
       {peers.map((p) => (
-        <ParticipantSeat key={p.userId} peer={p} />
+        <ParticipantSeat
+          key={p.userId}
+          peer={p}
+          revealed={revealed}
+          vote={votes[p.userId]}
+        />
       ))}
     </div>
   );

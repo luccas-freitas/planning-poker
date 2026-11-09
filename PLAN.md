@@ -179,7 +179,14 @@ Cada etapa é validada rodando localmente com duas janelas na mesma sala.
     edição de perfil dentro da sala, sair da sala, tela de sala não encontrada
   - Tema claro/escuro segue o sistema (`prefers-color-scheme`, só CSS)
   - `scripts/bot.mjs`: simula outro participante para testes
-- [ ] Etapa 4 — Votação
+- [x] **Etapa 4 — Votação** (2026-11-09)
+  - Leque de cartas: votar, trocar, clicar de novo para retirar (otimista com rollback)
+  - Contador "X de Y votaram" via Presence (`hasVoted`), botão Revelar
+  - Reveal: cartas mostram os valores (votos buscados após `revealed = true`)
+  - Nova rodada: zera votos e título; título da rodada editável por todos
+  - Migration `20261109010000`: `_touch_room` grava no máx. 1x/min (antes
+    gerava um evento Realtime em `rooms` para todos a cada voto)
+  - `scripts/bot.mjs` aceita um voto e vota de novo a cada rodada
 - [ ] Etapa 5 — Resultados
 - [ ] Etapa 6 — Extras
 - [ ] Etapa 7 — Deploy

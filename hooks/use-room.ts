@@ -19,6 +19,11 @@ export type RoomState = {
   peers: Peer[];
   /** Canal realtime conectado e escutando mudanças do banco. */
   connected: boolean;
+  /**
+   * Votos da rodada atual por user_id. Antes do reveal a RLS só devolve o
+   * meu; depois do reveal, todos.
+   */
+  votes: Record<string, string>;
 };
 
 const INITIAL: RoomState = {
@@ -29,6 +34,7 @@ const INITIAL: RoomState = {
   role: "player",
   peers: [],
   connected: false,
+  votes: {},
 };
 
 /**
@@ -80,7 +86,14 @@ export function useRoom(slug: string, profile: Profile | null | undefined) {
         .select()
         .eq("id", roundId)
         .single();
-      if (data) update({ round: data });
+      if (data && !cancelled) {
+        // mesma rodada (ex.: recarga após reconectar) mantém os votos
+        setState((s) => ({
+          ...s,
+          round: data,
+          votes: s.round?.id === data.id ? s.votes : {},
+        }));
+      }
     }
 
     async function loadAll(roomId: string, userId: string) {
@@ -208,8 +221,31 @@ export function useRoom(slug: string, profile: Profile | null | undefined) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug, ready]);
 
-  // ---- Presence: publica meus dados (nome, avatar, papel) ------------------
-  const { userId, role, status, room } = state;
+  const { userId, role, status, room, round } = state;
+  const roundId = round?.id;
+  const revealed = round?.revealed ?? false;
+  const myVote = userId ? (state.votes[userId] ?? null) : null;
+
+  // ---- Votos: recarrega ao trocar de rodada e ao revelar --------------------
+  useEffect(() => {
+    if (!roundId) return;
+    let cancelled = false;
+    getSupabase()
+      .from("votes")
+      .select("user_id, value")
+      .eq("round_id", roundId)
+      .then(({ data }) => {
+        if (cancelled || !data) return;
+        const votes = Object.fromEntries(data.map((v) => [v.user_id, v.value]));
+        setState((s) => (s.round?.id === roundId ? { ...s, votes } : s));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [roundId, revealed]);
+
+  // ---- Presence: publica meus dados (nome, avatar, papel, se votou) ---------
+  const hasVoted = myVote !== null;
   useEffect(() => {
     if (!userId || !profileName) return;
     const meta: PresenceMeta = {
@@ -217,13 +253,13 @@ export function useRoom(slug: string, profile: Profile | null | undefined) {
       name: profileName,
       avatar: profileAvatar,
       role,
-      hasVoted: presenceRef.current?.hasVoted ?? false,
+      hasVoted,
       onlineAt: presenceRef.current?.onlineAt ?? new Date().toISOString(),
     };
     presenceRef.current = meta;
     const channel = channelRef.current;
     if (channel?.state === "joined") void channel.track(meta);
-  }, [userId, profileName, profileAvatar, role, state.connected]);
+  }, [userId, profileName, profileAvatar, role, hasVoted, state.connected]);
 
   // ---- Perfil editado dentro da sala: atualiza o registro no banco ---------
   useEffect(() => {
@@ -262,5 +298,72 @@ export function useRoom(slug: string, profile: Profile | null | undefined) {
     await getSupabase().rpc("leave_room", { p_room_id: room.id });
   }, [room]);
 
-  return { ...state, setRole, leave };
+  /** Vota (ou troca o voto). `null` retira o voto. Otimista com rollback. */
+  const vote = useCallback(
+    async (value: string | null) => {
+      if (!room || !userId) return;
+      let previous: string | undefined;
+      setState((s) => {
+        previous = s.votes[userId];
+        const votes = { ...s.votes };
+        if (value === null) delete votes[userId];
+        else votes[userId] = value;
+        return { ...s, votes };
+      });
+      const { error } = await getSupabase().rpc("cast_vote", {
+        p_room_id: room.id,
+        // o tipo gerado não sabe que o parâmetro aceita null
+        p_value: value as string,
+      });
+      if (error) {
+        setState((s) => {
+          const votes = { ...s.votes };
+          if (previous === undefined) delete votes[userId];
+          else votes[userId] = previous;
+          return { ...s, votes };
+        });
+        throw error;
+      }
+    },
+    [room, userId],
+  );
+
+  const reveal = useCallback(async () => {
+    if (!room) return;
+    const { error } = await getSupabase().rpc("reveal_round", {
+      p_room_id: room.id,
+    });
+    if (error) throw error;
+  }, [room]);
+
+  const newRound = useCallback(async () => {
+    if (!room) return;
+    const { error } = await getSupabase().rpc("new_round", {
+      p_room_id: room.id,
+    });
+    if (error) throw error;
+  }, [room]);
+
+  const setTitle = useCallback(
+    async (title: string) => {
+      if (!room) return;
+      const { error } = await getSupabase().rpc("set_round_title", {
+        p_room_id: room.id,
+        p_title: title,
+      });
+      if (error) throw error;
+    },
+    [room],
+  );
+
+  return {
+    ...state,
+    myVote,
+    setRole,
+    leave,
+    vote,
+    reveal,
+    newRound,
+    setTitle,
+  };
 }
