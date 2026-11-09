@@ -218,7 +218,17 @@ Cada etapa é validada rodando localmente com duas janelas na mesma sala.
   demanda, dados em português) na barra de reações e no arremesso pelo avatar.
   Validação aceita qualquer emoji único (grafema com pictograma, ≤ 32 code units)
 
+- [x] Extra — Emojis personalizados (como no Slack): aba "Personalizados" no
+  seletor e "Adicionar emoji" no rodapé. Compartilhados por todo o app (não por
+  sala), imagem reduzida a 128 px (GIF vai como está) no bucket `emojis`,
+  registro via RPC `add_custom_emoji` (confere o arquivo; limites de 500 no
+  total e 20/dia por pessoa); só quem criou remove. Nas reações trafega só
+  `:nome:` e a URL vem da tabela.
+
 ### Aprendizados / pendências
+- **base-ui Popover:** fechar por código (`setOpen(false)`) ao abrir um Dialog
+  fazia o próximo clique no gatilho ser ignorado; deixar o Popover fechar
+  sozinho (outside-press) resolve.
 - **Presence tem limite por cliente:** no máximo 5 `track()` a cada 30 s; acima
   disso o Realtime fecha o canal (`ClientPresenceRateLimitReached`) e o
   realtime-js não reabre sozinho. Em produção, quem clicava várias vezes na

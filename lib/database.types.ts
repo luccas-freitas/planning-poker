@@ -23,7 +23,21 @@ export type Database = {
           }
         },"public": {
           Tables: {
-            "participants": {
+            "custom_emojis": {
+                  Row: {
+                    "created_at": string,"created_by": string,"name": string,"path": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "created_at"?: string,"created_by"?: string,"name": string,"path": string
+                  }
+                  Update: {
+                    "created_at"?: string,"created_by"?: string,"name"?: string,"path"?: string
+                  }
+                  Relationships: [
+                    
+                  ]
+                },"participants": {
                   Row: {
                     "avatar_url": string | null,"display_name": string,"joined_at": string,"role": string,"room_id": string,"user_id": string
                   }
@@ -115,6 +129,9 @@ isOneToOne: false
 "_touch_room":
 { Args: { "p_room_id": string }; Returns: undefined
                            },
+"add_custom_emoji":
+{ Args: { "p_name": string,"p_path": string }; Returns: undefined
+                           },
 "can_see_vote":
 { Args: { "p_round_id": string }; Returns: boolean
                            },
@@ -126,6 +143,9 @@ isOneToOne: false
                            },
 "create_room":
 { Args: { "p_avatar_url"?: string,"p_display_name": string,"p_name"?: string }; Returns: string
+                           },
+"delete_custom_emoji":
+{ Args: { "p_name": string }; Returns: string
                            },
 "is_room_member":
 { Args: { "p_room_id": string }; Returns: boolean

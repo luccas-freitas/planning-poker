@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { customNameFromToken, findCustomEmoji } from "@/lib/custom-emojis";
 import type { Reaction } from "@/lib/room";
 
 const MAX_ON_SCREEN = 40;
@@ -11,6 +12,8 @@ type Point = { x: number; y: number };
 type Flying = {
   id: string;
   emoji: string;
+  /** Imagem do emoji personalizado (URL vinda da nossa tabela). */
+  imageUrl?: string;
   from: Point;
   /** Destino (arremesso) ou subida a partir de `from`. */
   to: Point | null;
@@ -49,7 +52,12 @@ export function ReactionLayer({ subscribe }: Props) {
 
   useEffect(
     () =>
-      subscribe((r) => {
+      subscribe(async (r) => {
+        // personalizado: só mostra se existir na tabela (nome desconhecido some)
+        const customName = customNameFromToken(r.emoji);
+        const custom = customName ? await findCustomEmoji(customName) : null;
+        if (customName && !custom) return;
+
         const from = seatCenter(r.from) ?? randomBottom();
         const to = seatCenter(r.to);
         setFlying((list) =>
@@ -58,6 +66,7 @@ export function ReactionLayer({ subscribe }: Props) {
             {
               id: r.id,
               emoji: r.emoji,
+              imageUrl: custom?.url,
               from,
               to,
               drift: (Math.random() - 0.5) * 80,
@@ -116,7 +125,17 @@ export function ReactionLayer({ subscribe }: Props) {
               }}
               onAnimationComplete={() => remove(f.id)}
             >
-              {f.emoji}
+              {f.imageUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element -- imagem pequena do Storage, sem otimização
+                <img
+                  src={f.imageUrl}
+                  alt=""
+                  draggable={false}
+                  className="size-9 object-contain"
+                />
+              ) : (
+                f.emoji
+              )}
             </motion.span>
           );
         })}

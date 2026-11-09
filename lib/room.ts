@@ -1,3 +1,4 @@
+import { CUSTOM_TOKEN_RE } from "./custom-emojis";
 import type { Database } from "./database.types";
 
 type Tables = Database["public"]["Tables"];
@@ -87,6 +88,10 @@ const EMOJI_PART = /\p{Extended_Pictographic}|\p{Regional_Indicator}|\u20E3/u;
  */
 export const isReactionEmoji = (e: unknown): e is string =>
   typeof e === "string" &&
+  // emoji personalizado (`:borat:`); a imagem vem da tabela, não da mensagem
+  (CUSTOM_TOKEN_RE.test(e) || isUnicodeEmoji(e));
+
+const isUnicodeEmoji = (e: string) =>
   e.length > 0 &&
   e.length <= 32 &&
   EMOJI_PART.test(e) &&

@@ -135,6 +135,58 @@ end $$;
 
 reset role;
 
+-- 10. Emojis personalizados
+-- imagem "enviada" pela Alice (como postgres, simulando o Storage)
+insert into storage.objects (bucket_id, name, owner)
+values ('emojis', :'alice' || '/borat-abc123.webp', :'alice');
+set local role authenticated;
+select pg_temp.as_user(:'alice');
+do $$
+begin
+  -- sem imagem enviada não registra
+  begin
+    perform public.add_custom_emoji('fantasma', auth.uid()::text || '/fantasma-abc123.webp');
+    assert false, 'emoji sem imagem não deveria ser registrado';
+  exception when no_data_found then null;
+  end;
+  -- não pode usar a pasta de outra pessoa
+  begin
+    perform public.add_custom_emoji('alheio', '00000000-0000-0000-0000-000000000000/alheio-abc123.webp');
+    assert false, 'emoji na pasta de outra pessoa não deveria ser registrado';
+  exception when insufficient_privilege then null;
+  end;
+  -- caminho certo funciona
+  perform public.add_custom_emoji('borat', auth.uid()::text || '/borat-abc123.webp');
+  assert (select count(*) from public.custom_emojis where name = 'borat') = 1, 'borat deveria existir';
+  -- escrita direta é bloqueada
+  begin
+    insert into public.custom_emojis (name, path) values ('direto', 'x');
+    assert false, 'insert direto em custom_emojis deveria falhar';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+
+select pg_temp.as_user(:'bob');
+do $$
+begin
+  -- Bob vê, mas não apaga o emoji da Alice nem repete o nome
+  assert (select count(*) from public.custom_emojis where name = 'borat') = 1, 'Bob deveria ver o borat';
+  begin
+    perform public.delete_custom_emoji('borat');
+    assert false, 'Bob não deveria apagar emoji da Alice';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+
+select pg_temp.as_user(:'alice');
+do $$
+begin
+  assert public.delete_custom_emoji('borat') like '%/borat-abc123.webp',
+    'Alice deveria apagar o próprio emoji e receber o caminho';
+  assert not exists (select 1 from public.custom_emojis where name = 'borat'), 'borat deveria ter sido apagado';
+end $$;
+reset role;
+
 -- 9. Limpeza remove salas inativas
 update public.rooms set last_activity_at = now() - interval '8 days'
 where id = (select v::uuid from ctx where k = 'room');

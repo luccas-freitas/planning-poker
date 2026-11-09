@@ -156,6 +156,31 @@ const bad = await bob.storage
   .upload(`${aliceId}/hack.webp`, img);
 ok(!!bad.error, "upload na pasta de outro usuário é bloqueado");
 
+// Emoji personalizado: envia a imagem, registra, Bob vê e não apaga; Alice apaga
+const emojiName = `e2e-${Date.now().toString(36)}`;
+const emojiPath = `${aliceId}/${emojiName}-abc123.webp`;
+must(
+  await alice.storage
+    .from("emojis")
+    .upload(emojiPath, img, { contentType: "image/webp" }),
+);
+must(
+  await alice.rpc("add_custom_emoji", { p_name: emojiName, p_path: emojiPath }),
+);
+const seen = must(
+  await bob.from("custom_emojis").select("name").eq("name", emojiName),
+);
+ok(seen.length === 1, "emoji personalizado visível para outra pessoa");
+ok(
+  !!(await bob.rpc("delete_custom_emoji", { p_name: emojiName })).error,
+  "só quem criou apaga o emoji",
+);
+const removed = must(
+  await alice.rpc("delete_custom_emoji", { p_name: emojiName }),
+);
+must(await alice.storage.from("emojis").remove([removed]));
+ok(removed === emojiPath, "quem criou apaga o emoji e a imagem");
+
 await alice.removeAllChannels();
 await bob.removeAllChannels();
 console.log("\n✅ E2E ok");
