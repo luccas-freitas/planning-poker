@@ -41,7 +41,7 @@ export function RoundTitle({ title, onSave }: Props) {
         }
       }}
       maxLength={TITLE_MAX}
-      placeholder="Sobre o que estamos votando? (opcional)"
+      placeholder="Sobre o que vamos votar?"
       aria-label="Título da rodada"
       className="placeholder:text-muted-foreground hover:bg-background/50 focus:bg-background focus:ring-ring/50 w-full max-w-md rounded-md bg-transparent px-2 py-1 text-center font-medium outline-none placeholder:font-normal focus:ring-2"
     />

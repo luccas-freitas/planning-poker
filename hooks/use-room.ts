@@ -3,7 +3,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import type { Profile } from "@/lib/profile";
-import type { Peer, PresenceMeta, Role, Room, Round } from "@/lib/room";
+import {
+  isReactionEmoji,
+  type Peer,
+  type PresenceMeta,
+  type Reaction,
+  type Role,
+  type Room,
+  type Round,
+} from "@/lib/room";
 import { ensureSession, getSupabase } from "@/lib/supabase";
 
 export type RoomStatus = "loading" | "ready" | "not-found" | "error";
@@ -66,6 +74,8 @@ export function useRoom(slug: string, profile: Profile | null | undefined) {
   const presenceRef = useRef<PresenceMeta | null>(null);
   const joinedProfile = useRef<string>("");
   const currentRoundId = useRef<string | null>(null);
+  const reactionListeners = useRef(new Set<(r: Reaction) => void>());
+  const lastReactionAt = useRef(0);
 
   const ready = !!profile;
   const profileName = profile?.name;
@@ -145,7 +155,8 @@ export function useRoom(slug: string, profile: Profile | null | undefined) {
         if (cancelled) return;
 
         channel = supabase.channel(topic, {
-          config: { presence: { key: userId } },
+          // self: o remetente também recebe a própria reação (um só caminho)
+          config: { presence: { key: userId }, broadcast: { self: true } },
         });
         channelRef.current = channel;
 
@@ -179,6 +190,18 @@ export function useRoom(slug: string, profile: Profile | null | undefined) {
               if (round.id === currentRoundId.current) update({ round });
             },
           )
+          .on("broadcast", { event: "reaction" }, ({ payload }) => {
+            // payload vem de outros clientes: valida antes de usar
+            const p = payload as Partial<Reaction>;
+            if (!isReactionEmoji(p.emoji) || typeof p.from !== "string") return;
+            const reaction: Reaction = {
+              id: crypto.randomUUID(),
+              emoji: p.emoji,
+              from: p.from,
+              to: typeof p.to === "string" ? p.to : undefined,
+            };
+            reactionListeners.current.forEach((l) => l(reaction));
+          })
           .on("presence", { event: "sync" }, () => {
             const presence = channel!.presenceState<PresenceMeta>();
             update({ peers: peersFromPresence(presence, userId) });
@@ -317,10 +340,56 @@ export function useRoom(slug: string, profile: Profile | null | undefined) {
         p_role: next,
       });
       if (error) throw error;
-      setState((s) => ({ ...s, role: next }));
+      setState((s) => {
+        if (next === "player" || !s.userId) return { ...s, role: next };
+        // o RPC apaga o voto da rodada aberta; espelha localmente
+        const votes = { ...s.votes };
+        if (!s.round?.revealed) delete votes[s.userId];
+        return { ...s, role: next, votes };
+      });
     },
     [room],
   );
+
+  /** Envia uma reação (no máx. ~4 por segundo por pessoa). */
+  const sendReaction = useCallback(
+    (emoji: string, to?: string) => {
+      const channel = channelRef.current;
+      const now = Date.now();
+      if (!channel || !userId || now - lastReactionAt.current < 250) return;
+      lastReactionAt.current = now;
+      void channel.send({
+        type: "broadcast",
+        event: "reaction",
+        payload: { emoji, from: userId, to },
+      });
+    },
+    [userId],
+  );
+
+  /** Assina reações recebidas; devolve a função para cancelar. */
+  const onReaction = useCallback((listener: (r: Reaction) => void) => {
+    const listeners = reactionListeners.current;
+    listeners.add(listener);
+    return () => {
+      listeners.delete(listener);
+    };
+  }, []);
+
+  /** Efeito local (não enviado): chuva de emoji, ex.: consenso. */
+  const celebrate = useCallback((emoji = "🎉", count = 14) => {
+    for (let i = 0; i < count; i++) {
+      const reaction: Reaction = {
+        id: crypto.randomUUID(),
+        emoji,
+        from: "",
+      };
+      setTimeout(
+        () => reactionListeners.current.forEach((l) => l(reaction)),
+        i * 70,
+      );
+    }
+  }, []);
 
   const leave = useCallback(async () => {
     if (!room) return;
@@ -390,6 +459,9 @@ export function useRoom(slug: string, profile: Profile | null | undefined) {
     myVote,
     setRole,
     leave,
+    sendReaction,
+    onReaction,
+    celebrate,
     vote,
     reveal,
     newRound,

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import {
   Eye,
   Link2,
+  Spade,
   Loader2,
   LogOut,
   RotateCcw,
@@ -17,6 +18,8 @@ import { ProfileDialog } from "@/components/profile-dialog";
 import { ProfileForm } from "@/components/profile-form";
 import { CardDeck } from "@/components/room/card-deck";
 import { ParticipantSeat } from "@/components/room/participant-seat";
+import { ReactionBar } from "@/components/room/reaction-bar";
+import { ReactionLayer } from "@/components/room/reaction-layer";
 import { ResultsPanel } from "@/components/room/results-panel";
 import { RoundTitle } from "@/components/room/round-title";
 import { UserAvatar } from "@/components/user-avatar";
@@ -110,6 +113,11 @@ export function RoomView({ slug }: { slug: string }) {
     }
   }
 
+  function toggleRole() {
+    const next = room.role === "player" ? "spectator" : "player";
+    void run(() => room.setRole(next), "Não foi possível trocar de papel.");
+  }
+
   const revealed = room.round?.revealed ?? false;
   const votedCount = players.filter((p) => p.hasVoted).length;
   const isPlayer = room.role === "player";
@@ -134,6 +142,12 @@ export function RoomView({ slug }: { slug: string }) {
         <Button variant="outline" size="sm" onClick={copyLink}>
           <Link2 /> <span className="hidden sm:inline">Convidar</span>
         </Button>
+        <RoleToggle
+          role={room.role}
+          busy={busy}
+          onToggle={toggleRole}
+          className="hidden sm:inline-flex"
+        />
         <ProfileDialog profile={profile} />
         <Button
           variant="ghost"
@@ -146,7 +160,12 @@ export function RoomView({ slug }: { slug: string }) {
       </header>
 
       <main className="flex flex-1 flex-col items-center justify-center gap-6 px-4 py-8">
-        <SeatRow peers={top} revealed={revealed} votes={room.votes} />
+        <SeatRow
+          peers={top}
+          revealed={revealed}
+          votes={room.votes}
+          onThrow={room.sendReaction}
+        />
         <div className="bg-muted/50 flex min-h-40 w-full max-w-2xl flex-col items-center justify-center gap-3 rounded-[2.5rem] border px-6 py-6 text-center">
           <RoundTitle
             title={room.round?.title ?? null}
@@ -190,29 +209,52 @@ export function RoomView({ slug }: { slug: string }) {
             </>
           )}
         </div>
-        <SeatRow peers={bottom} revealed={revealed} votes={room.votes} />
+        <SeatRow
+          peers={bottom}
+          revealed={revealed}
+          votes={room.votes}
+          onThrow={room.sendReaction}
+        />
 
         {spectators.length > 0 && (
           <section className="text-muted-foreground flex flex-wrap items-center justify-center gap-2 text-sm">
             <Eye className="size-4" /> Assistindo:
             {spectators.map((p) => (
               <span key={p.userId} className="flex items-center gap-1.5">
-                <UserAvatar
-                  name={p.name}
-                  avatar={p.avatar}
-                  className="size-6"
-                />
+                <span data-seat={p.userId} className="rounded-full">
+                  <UserAvatar
+                    name={p.name}
+                    avatar={p.avatar}
+                    className="size-6"
+                  />
+                </span>
                 {p.name}
                 {p.isMe && " (você)"}
               </span>
             ))}
           </section>
         )}
+
+        <div className="flex flex-wrap items-center justify-center gap-2">
+          <ReactionBar
+            onReact={(emoji) => room.sendReaction(emoji)}
+            className="bg-muted/50 rounded-full border px-1.5 py-0.5"
+          />
+          <RoleToggle
+            role={room.role}
+            busy={busy}
+            onToggle={toggleRole}
+            className="sm:hidden"
+          />
+        </div>
       </main>
+
+      <ReactionLayer subscribe={room.onReaction} />
 
       <footer className="bg-background/95 sticky bottom-0 border-t px-4 pt-2 pb-4 backdrop-blur">
         {revealed ? (
           <ResultsPanel
+            onConsensus={() => room.celebrate()}
             votes={room.votes}
             names={{
               ...room.members,
@@ -253,14 +295,43 @@ export function RoomView({ slug }: { slug: string }) {
   );
 }
 
+function RoleToggle({
+  role,
+  busy,
+  onToggle,
+  className,
+}: {
+  role: "player" | "spectator";
+  busy: boolean;
+  onToggle: () => void;
+  className?: string;
+}) {
+  const isPlayer = role === "player";
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      disabled={busy}
+      onClick={onToggle}
+      className={className}
+      title={isPlayer ? "Só assistir, sem votar" : "Voltar a votar"}
+    >
+      {isPlayer ? <Eye /> : <Spade />}
+      {isPlayer ? "Assistir" : "Jogar"}
+    </Button>
+  );
+}
+
 function SeatRow({
   peers,
   revealed,
   votes,
+  onThrow,
 }: {
   peers: Peer[];
   revealed: boolean;
   votes: Record<string, string>;
+  onThrow: (emoji: string, to: string) => void;
 }) {
   if (peers.length === 0) return null;
   return (
@@ -271,6 +342,7 @@ function SeatRow({
           peer={p}
           revealed={revealed}
           vote={votes[p.userId]}
+          onThrow={onThrow}
         />
       ))}
     </div>

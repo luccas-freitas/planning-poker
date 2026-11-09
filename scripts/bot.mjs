@@ -1,6 +1,7 @@
 // Bot de teste: entra numa sala como outro usuário, fica online e (opcional) vota.
 // Uso: node scripts/bot.mjs <slug> [nome] [segundos] [voto]
 // Com [voto], vota ao entrar e de novo a cada nova rodada.
+// Com BOT_REACT=<segundos>, manda uma reação aleatória nesse intervalo.
 import { createClient } from "@supabase/supabase-js";
 import { readFileSync } from "node:fs";
 
@@ -51,4 +52,13 @@ ch.on("postgres_changes",
   console.log(`${name} online em ${slug}`);
   void castVote();
 });
+const reactEvery = Number(process.env.BOT_REACT || 0);
+if (reactEvery > 0) {
+  const emojis = ["👍", "🎉", "😂", "🤔", "🔥", "👏", "😱", "☕"];
+  setInterval(() => {
+    const emoji = emojis[Math.floor(Math.random() * emojis.length)];
+    void ch.send({ type: "broadcast", event: "reaction", payload: { emoji, from: userId } });
+  }, reactEvery * 1000);
+}
+
 setTimeout(async () => { await sb.removeAllChannels(); process.exit(0); }, Number(seconds) * 1000);

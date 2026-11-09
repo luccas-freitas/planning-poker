@@ -2,6 +2,7 @@
 
 import { DECK } from "@/lib/deck";
 import { cn } from "@/lib/utils";
+import { CardCorners } from "./card-corners";
 
 type Props = {
   selected: string | null;
@@ -15,7 +16,8 @@ export function CardDeck({ selected, disabled, onSelect }: Props) {
     <div
       role="radiogroup"
       aria-label="Suas cartas"
-      className="flex max-w-full gap-2 overflow-x-auto px-1 pt-3 pb-1 sm:justify-center"
+      // celular: 2 linhas de 5 cartas (sem rolagem); telas maiores: uma linha
+      className="mx-auto grid w-fit grid-cols-5 gap-x-2 gap-y-3 px-1 pt-3 pb-1 sm:flex sm:justify-center sm:gap-2"
     >
       {DECK.map((value) => {
         const isSelected = value === selected;
@@ -29,14 +31,15 @@ export function CardDeck({ selected, disabled, onSelect }: Props) {
             disabled={disabled}
             onClick={() => onSelect(isSelected ? null : value)}
             className={cn(
-              "flex h-16 w-11 shrink-0 items-center justify-center rounded-lg border-2 text-lg font-bold transition-all sm:h-20 sm:w-14 sm:text-xl",
+              "relative flex h-16 w-11 shrink-0 items-center justify-center rounded-lg border-2 text-lg font-bold transition-all sm:h-20 sm:w-14 sm:text-xl",
               "focus-visible:ring-ring/50 focus-visible:ring-3 focus-visible:outline-none",
               "disabled:cursor-not-allowed disabled:opacity-40",
               isSelected
-                ? "border-primary bg-primary text-primary-foreground -translate-y-2 shadow-lg"
-                : "border-primary/40 bg-card text-primary enabled:hover:border-primary enabled:hover:-translate-y-1",
+                ? "poker-selected border-poker-from shadow-poker-from/40 -translate-y-1 text-white shadow-lg sm:-translate-y-2"
+                : "border-poker-edge bg-poker-face text-poker-ink enabled:hover:border-poker-from enabled:hover:-translate-y-1 enabled:hover:shadow-md",
             )}
           >
+            <CardCorners value={value} />
             {value}
           </button>
         );

@@ -195,7 +195,16 @@ Cada etapa é validada rodando localmente com duas janelas na mesma sala.
     posições distantes no deck) sugerindo ouvir quem votou nos extremos
   - Nomes de todos os participantes carregados no reveal (inclui quem votou e saiu)
   - Cor do gráfico validada (dataviz) contra o card claro e escuro
-- [ ] Etapa 6 — Extras
+- [x] **Etapa 6 — Extras** (2026-11-09)
+  - Reações (Realtime Broadcast): barra de emojis que sobem do avatar de quem
+    reagiu; clicar no avatar de outra pessoa "arremessa" um emoji nela.
+    Emojis validados contra lista fixa, limite de ~4/s por pessoa, máx. 40 na tela
+  - Chuva de 🎉 local quando dá consenso
+  - Alternar Jogador/Espectador (virar espectador remove o voto da rodada aberta)
+  - Animações: carta vira ao votar/revelar, participantes entram com fade/escala;
+    tudo desligado com `prefers-reduced-motion`
+  - Mobile: cartas em 2 linhas de 5, gráfico empilhado sobre as estatísticas,
+    sem rolagem horizontal (testado a 390px)
 - [ ] Etapa 7 — Deploy
 
 ### Aprendizados / pendências
@@ -206,6 +215,8 @@ Cada etapa é validada rodando localmente com duas janelas na mesma sala.
   não é enviada (`void supabase.rpc(...)` não faz nada).
 - **realtime-js:** `channel(topic)` reaproveita canal com o mesmo tópico e a remoção
   é assíncrona; no StrictMode esperamos a remoção anterior antes de recriar.
+- **framer-motion:** `initial={false}` com keyframes renderiza já no fim do
+  caminho; para animar a partir de um ponto, definir `initial` explícito.
 - **Storage:** `upsert` exige policy de `SELECT` além de `INSERT`/`UPDATE`.
 - **Avatares órfãos:** Supabase não permite apagar `storage.objects` via SQL;
   limpeza de avatares fica para a etapa 7 (Storage API).

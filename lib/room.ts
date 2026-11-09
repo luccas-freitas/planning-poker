@@ -53,3 +53,26 @@ export async function copyText(text: string): Promise<boolean> {
     }
   }
 }
+
+/** Emojis de reação permitidos (o que chega fora da lista é ignorado). */
+export const REACTIONS = [
+  "👍",
+  "🎉",
+  "😂",
+  "🤔",
+  "🔥",
+  "👏",
+  "😱",
+  "☕",
+] as const;
+
+export type Reaction = {
+  id: string;
+  emoji: string;
+  from: string;
+  /** Alvo (emoji "arremessado" em alguém) ou ausente (flutua do remetente). */
+  to?: string;
+};
+
+export const isReactionEmoji = (e: unknown): e is string =>
+  typeof e === "string" && (REACTIONS as readonly string[]).includes(e);

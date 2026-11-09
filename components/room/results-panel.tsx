@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import {
   Bar,
   BarChart,
@@ -17,13 +17,15 @@ type Props = {
   votes: Record<string, string>;
   /** Nomes por user_id (participantes da sala + quem está online). */
   names: Record<string, Member>;
+  /** Chamado uma vez ao montar se houve consenso (ex.: chuva de 🎉). */
+  onConsensus?: () => void;
 };
 
 const nameOf = (names: Props["names"], id: string) =>
   names[id]?.name ?? "Alguém";
 
 /** Resultado da rodada revelada: distribuição, média, mediana e consenso. */
-export function ResultsPanel({ votes, names }: Props) {
+export function ResultsPanel({ votes, names, onConsensus }: Props) {
   const stats = useMemo(
     () =>
       computeStats(
@@ -31,6 +33,13 @@ export function ResultsPanel({ votes, names }: Props) {
       ),
     [votes],
   );
+
+  // comemora uma vez por rodada (o painel monta a cada reveal)
+  const consensus = stats.consensus;
+  useEffect(() => {
+    if (consensus) onConsensus?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [consensus]);
 
   if (stats.total === 0) {
     return (
@@ -49,7 +58,7 @@ export function ResultsPanel({ votes, names }: Props) {
       className="mx-auto flex w-full max-w-3xl flex-col gap-4 sm:flex-row sm:items-center"
     >
       {/* Gráfico: uma série → uma cor, sem legenda; valores no topo das barras */}
-      <div className="h-36 min-w-0 flex-1" aria-hidden="true">
+      <div className="h-36 w-full min-w-0 sm:flex-1" aria-hidden="true">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart
             data={stats.distribution}
