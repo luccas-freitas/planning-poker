@@ -164,7 +164,12 @@ Cada etapa é validada rodando localmente com duas janelas na mesma sala.
   - Escrita só por RPC (`security definer`); tabelas somente leitura via RLS
   - Slug da sala gerado no banco (12 chars hex) — `nanoid` não é mais necessário
   - Testes: `npm run db:test` (SQL) e `npm run test:e2e` (API real)
-- [ ] Etapa 2 — Perfil
+- [x] **Etapa 2 — Perfil** (2026-11-09)
+  - Perfil (nome + avatar) salvo no `localStorage` (`lib/profile.ts`, `useProfile`)
+  - 12 avatares DiceBear em 8 estilos, botão "Outras opções" para sortear
+  - Upload: recorte quadrado + 256px WebP no navegador, salvo em
+    `avatars/<user_id>/avatar` (substitui a anterior) com cache-buster
+  - Sessão anônima criada só quando necessária (upload; depois, criar/entrar em sala)
 - [ ] Etapa 3 — Salas
 - [ ] Etapa 4 — Votação
 - [ ] Etapa 5 — Resultados
