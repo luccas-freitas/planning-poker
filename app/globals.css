@@ -172,6 +172,11 @@
   html {
     @apply font-sans;
   }
+  /* Tailwind 4 tirou o cursor de mãozinha dos botões; devolve para todos */
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
 }
 
 /* seletor de emojis: mantém "Rostos e pessoas" (a lib força capitalize) */
