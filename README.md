@@ -1,6 +1,26 @@
 # Planning Poker
 
-Planning poker em tempo real para o time. Next.js + Tailwind + Supabase. Veja o [PLAN.md](./PLAN.md).
+Planning poker em tempo real para times de desenvolvimento. Sem cadastro: escolha
+um nome e uma foto, crie uma sala e compartilhe o link.
+
+Feito com Next.js, Tailwind e Supabase, tudo em planos gratuitos. Decisões e
+arquitetura no [PLAN.md](./PLAN.md).
+
+## Funcionalidades
+
+- Salas por link, sem login (sessão anônima invisível do Supabase)
+- Cartas Fibonacci (`0 1 2 3 5 8 13 21 ? ☕`), troca de voto até revelar
+- Resultado com gráfico, média, mediana, sugestão de estimativa, aviso de
+  consenso e de votos muito diferentes
+- Reações com emoji, inclusive arremessadas em outra pessoa
+- Avatar pronto (DiceBear) ou foto enviada
+- Modo espectador
+- Tema claro/escuro seguindo o sistema
+
+## Privacidade
+
+Nenhum dado sensível é guardado: só o nome e o avatar escolhidos, os votos e as
+salas. Salas sem atividade há 7 dias são apagadas automaticamente.
 
 ## Pré-requisitos
 
@@ -39,3 +59,7 @@ Supabase Studio local: http://127.0.0.1:54323
 - Tabelas são somente leitura para o cliente; toda escrita é via RPC (`create_room`,
   `join_room`, `cast_vote`, `reveal_round`, `new_round`, `set_role`, `set_round_title`, `leave_room`)
 - Votos ficam ocultos (RLS) até a rodada ser revelada
+
+## Licença
+
+[MIT](./LICENSE)
