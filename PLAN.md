@@ -205,7 +205,15 @@ Cada etapa é validada rodando localmente com duas janelas na mesma sala.
     tudo desligado com `prefers-reduced-motion`
   - Mobile: cartas em 2 linhas de 5, gráfico empilhado sobre as estatísticas,
     sem rolagem horizontal (testado a 390px)
-- [ ] Etapa 7 — Deploy
+- [x] Etapa 7 — Deploy
+  - No ar em https://planning-poker-jade-three.vercel.app (Vercel Hobby,
+    deploy automático a cada push na `main`)
+  - Repositório público: https://github.com/luccas-freitas/planning-poker (MIT)
+  - Supabase cloud `owpwheqlzjtiipluofwf` (us-east-1): migrations via
+    `supabase db push --remote`, login anônimo ligado no dashboard, cron de
+    limpeza agendado
+  - `npm run test:e2e` e `scripts/bot.mjs` aceitam `NEXT_PUBLIC_SUPABASE_*` do
+    ambiente para rodar contra a nuvem; e2e passou em produção
 
 ### Aprendizados / pendências
 - **Realtime:** `postgres_changes` só fica ativo após a mensagem `system`
@@ -218,7 +226,11 @@ Cada etapa é validada rodando localmente com duas janelas na mesma sala.
 - **framer-motion:** `initial={false}` com keyframes renderiza já no fim do
   caminho; para animar a partir de um ponto, definir `initial` explícito.
 - **Storage:** `upsert` exige policy de `SELECT` além de `INSERT`/`UPDATE`.
-- **Avatares órfãos:** Supabase não permite apagar `storage.objects` via SQL;
-  limpeza de avatares fica para a etapa 7 (Storage API).
-- **Produção:** habilitar "Anonymous sign-ins" no dashboard e considerar CAPTCHA
-  (Turnstile, gratuito) para evitar abuso na criação de sessões.
+- **Avatares órfãos:** Supabase não permite apagar `storage.objects` via SQL.
+  Cada pessoa tem no máximo um arquivo (sobrescrito a cada upload, ≤ 2 MB), então
+  o volume é pequeno perto do 1 GB grátis; se crescer, limpar via Storage API.
+- **Config da nuvem:** não usar `supabase config push` (envia o `config.toml`
+  local inteiro e desligaria confirmação de e-mail/MFA da nuvem); mudar auth
+  pelo dashboard.
+- **Pendente (opcional):** CAPTCHA (Turnstile, gratuito) no login anônimo, se
+  aparecer abuso na criação de sessões.

@@ -1,6 +1,7 @@
 // Teste ponta a ponta contra o Supabase local: auth anônimo, RPCs, RLS,
 // Realtime (changes, presence, broadcast) e Storage.
 // Uso: npm run test:e2e   (requer `npm run db:start`)
+// Contra outro projeto: NEXT_PUBLIC_SUPABASE_URL=... NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=... npm run test:e2e
 import { createClient } from "@supabase/supabase-js";
 import { readFileSync } from "node:fs";
 
@@ -10,8 +11,11 @@ const env = Object.fromEntries(
     .filter((l) => l.includes("="))
     .map((l) => l.split("=")),
 );
-const URL_ = env.NEXT_PUBLIC_SUPABASE_URL;
-const KEY = env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+const URL_ =
+  process.env.NEXT_PUBLIC_SUPABASE_URL ?? env.NEXT_PUBLIC_SUPABASE_URL;
+const KEY =
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
+  env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
 const mk = () => createClient(URL_, KEY, { auth: { persistSession: false } });
 const ok = (cond, msg) => {

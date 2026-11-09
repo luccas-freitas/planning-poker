@@ -6,6 +6,8 @@ um nome e uma foto, crie uma sala e compartilhe o link.
 Feito com Next.js, Tailwind e Supabase, tudo em planos gratuitos. Decisões e
 arquitetura no [PLAN.md](./PLAN.md).
 
+**Acesse:** https://planning-poker-jade-three.vercel.app
+
 ## Funcionalidades
 
 - Salas por link, sem login (sessão anônima invisível do Supabase)
@@ -59,6 +61,21 @@ Supabase Studio local: http://127.0.0.1:54323
 - Tabelas são somente leitura para o cliente; toda escrita é via RPC (`create_room`,
   `join_room`, `cast_vote`, `reveal_round`, `new_round`, `set_role`, `set_round_title`, `leave_room`)
 - Votos ficam ocultos (RLS) até a rodada ser revelada
+
+## Deploy
+
+- **Front:** Vercel, deploy automático a cada push na `main`. Variáveis:
+  `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`.
+- **Banco:** Supabase. Para publicar migrations novas:
+  ```bash
+  npx supabase login
+  npx supabase link --project-ref <ref>
+  npx supabase db push --remote
+  ```
+  No painel do Supabase, ative **Authentication → Sign In / Providers → Allow
+  anonymous sign-ins**.
+- **Teste contra a nuvem:**
+  `NEXT_PUBLIC_SUPABASE_URL=... NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=... npm run test:e2e`
 
 ## Licença
 
