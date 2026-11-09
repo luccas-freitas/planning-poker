@@ -1,5 +1,6 @@
 "use client";
 
+import { EmojiPickerButton } from "@/components/room/emoji-picker-button";
 import { REACTIONS } from "@/lib/room";
 import { cn } from "@/lib/utils";
 
@@ -8,12 +9,15 @@ type Props = {
   className?: string;
   /** Rótulo acessível de cada botão, ex.: (e) => `Reagir com ${e}`. */
   label?: (emoji: string) => string;
+  /** Rótulo do botão "+" que abre o seletor completo. */
+  moreLabel?: string;
 };
 
 export function ReactionBar({
   onReact,
   className,
   label = (e) => `Reagir com ${e}`,
+  moreLabel,
 }: Props) {
   return (
     <div
@@ -32,6 +36,7 @@ export function ReactionBar({
           {emoji}
         </button>
       ))}
+      <EmojiPickerButton onPick={onReact} label={moreLabel} />
     </div>
   );
 }

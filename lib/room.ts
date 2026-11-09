@@ -55,6 +55,7 @@ export async function copyText(text: string): Promise<boolean> {
 }
 
 /** Emojis de reação permitidos (o que chega fora da lista é ignorado). */
+/** Atalhos da barra de reações; o seletor "+" libera todos os emojis. */
 export const REACTIONS = [
   "👍",
   "🎉",
@@ -74,5 +75,16 @@ export type Reaction = {
   to?: string;
 };
 
+const graphemes = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+const EMOJI_PART = /\p{Extended_Pictographic}|\p{Regional_Indicator}|\u20E3/u;
+
+/**
+ * Aceita exatamente um emoji (qualquer um, inclusive com tom de pele, ZWJ ou
+ * bandeira): um único grafema curto que contenha um pictograma.
+ */
 export const isReactionEmoji = (e: unknown): e is string =>
-  typeof e === "string" && (REACTIONS as readonly string[]).includes(e);
+  typeof e === "string" &&
+  e.length > 0 &&
+  e.length <= 32 &&
+  EMOJI_PART.test(e) &&
+  [...graphemes.segment(e)].length === 1;

@@ -173,3 +173,8 @@
     @apply font-sans;
   }
 }
+
+/* seletor de emojis: mantém "Rostos e pessoas" (a lib força capitalize) */
+.pp-emoji-picker [data-epr-part="category-label"] {
+  text-transform: none;
+}

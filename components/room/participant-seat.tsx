@@ -95,6 +95,7 @@ export function ParticipantSeat({ peer, revealed, vote, onThrow }: Props) {
               <ReactionBar
                 onReact={(emoji) => onThrow(emoji, peer.userId)}
                 label={(e) => `Jogar ${e} em ${peer.name}`}
+                moreLabel={`Escolher outro emoji para jogar em ${peer.name}`}
               />
             </PopoverContent>
           </Popover>

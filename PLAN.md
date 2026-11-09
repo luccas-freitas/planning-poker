@@ -214,6 +214,9 @@ Cada etapa é validada rodando localmente com duas janelas na mesma sala.
     limpeza agendado
   - `npm run test:e2e` e `scripts/bot.mjs` aceitam `NEXT_PUBLIC_SUPABASE_*` do
     ambiente para rodar contra a nuvem; e2e passou em produção
+- [x] Extra — Seletor completo de emojis (`emoji-picker-react`, carregado sob
+  demanda, dados em português) na barra de reações e no arremesso pelo avatar.
+  Validação aceita qualquer emoji único (grafema com pictograma, ≤ 32 code units)
 
 ### Aprendizados / pendências
 - **Realtime:** `postgres_changes` só fica ativo após a mensagem `system`
