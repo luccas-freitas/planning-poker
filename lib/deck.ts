@@ -1,4 +1,7 @@
-/** Deck Fibonacci. Precisa bater com o CHECK de `votes.value` no banco. */
+/**
+ * Deck Fibonacci + cartas de pausa (☕ café, 🍛 almoço, 🚬 cigarro).
+ * Precisa caber no CHECK de `votes.value` no banco.
+ */
 export const DECK = [
   "0",
   "1",
@@ -8,8 +11,9 @@ export const DECK = [
   "8",
   "13",
   "21",
-  "?",
   "☕",
+  "🍛",
+  "🚬",
 ] as const;
 
 export type CardValue = (typeof DECK)[number];

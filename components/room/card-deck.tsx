@@ -16,8 +16,8 @@ export function CardDeck({ selected, disabled, onSelect }: Props) {
     <div
       role="radiogroup"
       aria-label="Suas cartas"
-      // celular: 2 linhas de 5 cartas (sem rolagem); telas maiores: uma linha
-      className="mx-auto grid w-fit grid-cols-5 gap-x-2 gap-y-3 px-1 pt-3 pb-1 sm:flex sm:justify-center sm:gap-2"
+      // celular: 2 linhas de 6 cartas (sem rolagem); telas maiores: uma linha
+      className="mx-auto grid w-fit grid-cols-6 gap-x-2 gap-y-3 px-1 pt-3 pb-1 sm:flex sm:justify-center sm:gap-2"
     >
       {DECK.map((value) => {
         const isSelected = value === selected;

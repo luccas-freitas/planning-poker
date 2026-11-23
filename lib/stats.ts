@@ -8,7 +8,7 @@ export type VoteStats = {
   total: number;
   /** Só as cartas que receberam votos, na ordem do deck. */
   distribution: Bucket[];
-  /** Estatísticas numéricas (ignoram `?` e `☕`); null se não houver números. */
+  /** Estatísticas numéricas (ignoram as cartas de pausa); null se não houver números. */
   average: number | null;
   median: number | null;
   /** Carta do deck mais próxima da média (empate → a maior). */

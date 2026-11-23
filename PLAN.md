@@ -10,7 +10,7 @@ Sem login, sem integrações, sem dados sensíveis. **100% gratuito.**
 - Criar sala e compartilhar link (`/r/abc123`)
 - Entrar pelo link (se não tiver perfil, mostra a tela de perfil antes)
 - Papel **jogador** ou **espectador** (alternável a qualquer momento)
-- Cartas Fibonacci: `0, 1, 2, 3, 5, 8, 13, 21, ?, ☕`
+- Cartas Fibonacci: `0, 1, 2, 3, 5, 8, 13, 21` + pausas `☕, 🍛, 🚬`
 - Votar e trocar o voto enquanto a rodada está aberta
 - Indicador de quem já votou (sem mostrar o valor)
 - **Revelar**: cartas viram + gráfico de distribuição, média, mediana e indicador de consenso

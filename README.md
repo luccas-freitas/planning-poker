@@ -11,7 +11,7 @@ arquitetura no [PLAN.md](./PLAN.md).
 ## Funcionalidades
 
 - Salas por link, sem login (sessão anônima invisível do Supabase)
-- Cartas Fibonacci (`0 1 2 3 5 8 13 21 ? ☕`), troca de voto até revelar
+- Cartas Fibonacci (`0 1 2 3 5 8 13 21`) + pausas (`☕ 🍛 🚬`), troca de voto até revelar
 - Resultado com gráfico, média, mediana, sugestão de estimativa, aviso de
   consenso e de votos muito diferentes
 - Reações com emoji, inclusive arremessadas em outra pessoa
